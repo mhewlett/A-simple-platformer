@@ -1,0 +1,1418 @@
+import pygame, sys
+import math, random
+
+class Sprite:
+    def __init__(self,x,y,width,height,color):
+        self.x = x
+        self.y = y
+        self.dx = 0
+        self.dy = 0
+        self.color = color
+        self.width = width
+        self.height = height
+        self.friction = 0.9
+
+    def move(self):
+        self.x += self.dx
+        self.y += self.dy
+        self.dy += GRAVITY
+
+    def goto(self,x,y):
+        self.x = x
+        self.y = y
+
+    def render(self):
+        pygame.draw.rect(screen,self.color,pygame.Rect(int(self.x - self.width/2.0),
+                                                       int(self.y - self.height/2.0),
+                                                       self.width, self.height))
+
+    def is_aabb_collision(self,other):
+        x_collision = (math.fabs(self.x - other.x) * 2 < self.width + other.width)
+        y_collision = (math.fabs(self.y - other.y) * 2 < self.height + other.height)
+        return (x_collision and y_collision)
+
+class Player(Sprite):
+    def __init__(self,x,y,width,height,color):
+        Sprite.__init__(self,x,y,width,height,color)
+
+    def block_range(self):
+        if spawn_block:
+            if block_limit == 1:
+                pygame.draw.circle(screen,'white', (self.x, self.y),150,1)
+                pygame.draw.circle(screen, 'white', (self.x, self.y), 50, 1)
+            elif block_limit == 2:
+                pygame.draw.circle(screen, 'black', (self.x, self.y), 150, 1)
+                pygame.draw.circle(screen, 'black', (self.x, self.y), 50, 1)
+            if drop_block:
+                pygame.draw.circle(screen, 'blue', (self.x, self.y), 150, 1)
+                pygame.draw.circle(screen, 'blue', (self.x, self.y), 50, 1)
+                if launch_block:
+                    pygame.draw.circle(screen, 'violet', (self.x, self.y), 150, 1)
+                    pygame.draw.circle(screen, 'violet', (self.x, self.y), 50, 1)
+
+class Enemy(Sprite):
+    def __init__(self,x,y,width,height,color):
+        Sprite.__init__(self,x,y,width,height,color)
+
+class Block:
+    def __init__(self,x,y):
+        self.x, self.y = x, y
+        self.dy = 0
+        self.dx = 0
+        self.width, self.height = 20, 20
+        if spawn_block:
+            if block_limit == 1:
+                self.color = 'white'
+            elif block_limit == 2:
+                self.color = 'black'
+            if drop_block:
+                self.color = 'blue'
+                if launch_block:
+                    self.color = 'violet'
+
+    def block_drop(self):
+        self.dy += 12
+        self.y += self.dy
+
+    def block_launch_left(self):
+
+        self.dx += -12
+        self.x += self.dx
+
+
+    def block_launch_right(self):
+
+        self.dx += 12
+        self.x += self.dx
+
+    def render(self):
+        self.image = pygame.Surface((self.width,self.height))
+        self.image.fill(self.color)
+        self.rect = self.image.get_rect(center = (self.x,self.y))
+        screen.blit(self.image,self.rect)
+        if block_limit == 1:
+            pygame.draw.rect(screen,'black',self.rect,2)
+        elif block_limit == 2:
+            pygame.draw.rect(screen, 'white', self.rect, 2)
+
+    def is_aabb_collision(self,other):
+        x_collision = (math.fabs(self.x - other.x) * 2 < self.width + other.width)
+        y_collision = (math.fabs(self.y - other.y) * 2 < self.height + other.height)
+        return (x_collision and y_collision)
+
+class Crosshair(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.Surface((1,1))
+        self.rect = self.image.get_rect()
+
+    def shoot(self):
+        pygame.sprite.spritecollide(crosshair, block_sprites, True)
+
+    def update(self):
+        if spawn_block:
+            self.rect.center = pygame.mouse.get_pos()
+            pygame.draw.circle(screen, 'red', (self.rect.center), 12, 3)
+            pygame.draw.line(screen, 'red', (self.rect.centerx - 16, self.rect.centery - 1),
+                                            (self.rect.centerx + 16, self.rect.centery - 1), 4)
+            pygame.draw.line(screen, 'red', (self.rect.centerx - 1, self.rect.centery - 16),
+                                            (self.rect.centerx - 1, self.rect.centery + 16), 4)
+
+class Chest:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 40
+        self.height = 25
+        self.color = 'brown'
+
+        self.image = pygame.Surface((self.width,self.height))
+        self.image.fill(self.color)
+        self.rect = self.image.get_rect(center=(self.x,self.y))
+
+    def render(self):
+        screen.blit(self.image,self.rect)
+
+class Gamestate:
+    def __init__(self):
+        self.state = 'outside'
+
+    def outside(self):
+        global load_state
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    pygame.quit()
+                    sys.exit()
+            if event.type == CREATECLOUD:
+                createClouds(clouds)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if len(blocks) != block_limit:
+                    if exterior_player.is_aabb_collision(ground):
+                        create_block()
+                    if blocks:
+                        for block in blocks:
+                            if exterior_player.is_aabb_collision(block):
+                                create_block()
+                elif len(blocks) == block_limit:
+                    if exterior_player.is_aabb_collision(ground):
+                        del blocks[0]
+                        create_block()
+                    if blocks:
+                        for block in blocks:
+                            if exterior_player.is_aabb_collision(block):
+                                del blocks[0]
+                                create_block()
+
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_a]:
+            exterior_player.dx = -5
+        elif keys[pygame.K_d]:
+            exterior_player.dx = 5
+        else:
+            exterior_player.dx = 0
+        if exterior_player.is_aabb_collision(ground):
+            if high_jump:
+                jump = 2
+            else:
+                jump = 1
+            if keys[pygame.K_SPACE] and jump:
+                exterior_player.dy -= 12
+                jump -= 1
+            if keys[pygame.K_SPACE] and jump:
+                exterior_player.dy -= 6
+
+        if keys[pygame.K_w] and exterior_player.is_aabb_collision(exterior_door):
+            load_state = True
+        if keys[pygame.K_LSHIFT]:
+            exterior_player.dx = exterior_player.dx * 2
+        if drop_block:
+            for block in blocks:
+                if keys[pygame.K_e]:
+                    block.block_drop()
+                    if block.y > 600:
+                        blocks.remove(block)
+        if launch_block:
+            for block in blocks:
+                launch = ''
+                x, y = pygame.mouse.get_pos()
+                if keys[pygame.K_f] and block.x > x and launch == '':
+                    launch = 'left'
+                    block.block_launch_left()
+                    if block.x < 0:
+                        blocks.remove(block)
+                        launch = ''
+                if keys[pygame.K_f] and block.x < x and launch == '':
+                    launch = 'right'
+                    block.block_launch_right()
+                    if block.x > 800:
+                        blocks.remove(block)
+                        launch = ''
+
+
+        if exterior_player.x <= 0:
+            load_state = True
+
+        if exterior_player.x >= 800:
+            load_state = True
+
+        if load_state == True:
+            load_in()
+            if load_down.y > 190 and load_up.y < 620:
+                self.state = change_state()
+                load_state = False
+        load_out()
+
+        exterior_player.move()
+
+        if exterior_player.y > 800:
+            exterior_player.goto(50, 0)
+
+        if exterior_player.is_aabb_collision(ground):
+            if exterior_player.y < ground.y:
+                exterior_player.dy = 0
+                exterior_player.y = ground.y - ground.height / 2 - exterior_player.height / 2 + 1
+
+        for block in blocks:
+            if exterior_player.is_aabb_collision(block):
+                collision_check(exterior_player, block)
+            if exterior_player.is_aabb_collision(block):
+                if high_jump:
+                    jump = 2
+                else:
+                    jump = 1
+                if keys[pygame.K_SPACE] and jump:
+                    exterior_player.dy -= 12
+                    jump -= 1
+                if keys[pygame.K_SPACE] and jump:
+                    exterior_player.dy -= 6
+
+
+        screen.fill('sky blue')
+
+        pygame.draw.circle(screen, 'yellow', (600, 100), 50)
+        for cloud in clouds:
+            cloud.render()
+            cloud.x += -.5
+            if cloud.x <= -1000:
+                clouds.remove(cloud)
+
+        ground.render()
+
+        pygame.draw.lines(screen, 'red', True, [(549, 450), (599, 400), (649, 450)], 100)
+        exterior_house.render()
+        exterior_door.render()
+        draw_block(blocks)
+
+
+        enemy1.move()
+        if enemy1.is_aabb_collision(ground):
+            enemy1.dy = 0
+            enemy1.y = ground.y - ground.height / 2.0 - enemy1.height / 2.0 + 1
+            enemy1.dy -= 15
+
+            if enemy1.x >= 350:
+                enemy1.dx = -3
+            if enemy1.x <= 50:
+                enemy1.dx = 3
+
+        for block in blocks:
+            if enemy1.is_aabb_collision(block):
+                if enemy1.x <= block.x - block.width / 2.0 and enemy1.dx > 0:
+                    enemy1.dx = enemy1.dx * -1
+                    enemy1.x = block.x - block.width / 2.0 - enemy1.width / 2.0
+                elif enemy1.x >= block.x + block.width / 2.0 and enemy1.dx < 0:
+                    enemy1.dx = enemy1.dx * -1
+                    enemy1.x = block.x + block.width / 2.0 + enemy1.width / 2.0
+                elif enemy1.y < block.y:
+                    enemy1.dy = 0
+                    enemy1.y = block.y - block.height / 2.0 - enemy1.height / 2.0 + 1
+                    enemy1.dy -= 15
+                elif enemy1.y > block.y:
+                    enemy1.dy = 0
+                    enemy1.y = block.y + block.height / 2.0 + enemy1.height / 2.0
+
+        if exterior_player.is_aabb_collision(enemy1):
+            collision_check(exterior_player,enemy1)
+            if exterior_player.y < enemy1.y and math.fabs(exterior_player.x - enemy1.x) <= enemy1.width / 2.0:
+                if keys[pygame.K_SPACE]:
+                    exterior_player.dy -= 12
+
+
+        enemy1.render()
+
+        exterior_player.render()
+        exterior_player.block_range()
+        for x in grass:
+            x.render()
+        crosshair_group.draw(screen)
+        crosshair_group.update()
+
+    def inside(self):
+        global load_state, npc_talk, spawn_block, blockBlock
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    pygame.quit()
+                    sys.exit()
+            if event.type == CREATECLOUD:
+                createClouds(clouds)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if blockBlock == False:
+                    if spawn_block:
+                        blockBlock = True
+            if event.type == UNABLETOUSE:
+                if blockBlock == True:
+                    blockBlock = False
+
+
+
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_a]:
+            interior_player.dx = -8
+        elif keys[pygame.K_d]:
+            interior_player.dx = 8
+        else:
+            interior_player.dx = 0
+        if keys[pygame.K_SPACE] and interior_player.is_aabb_collision(ground):
+            interior_player.dy = -16
+        if keys[pygame.K_w]:
+            if interior_player.is_aabb_collision(interior_door):
+                load_state = True
+            if interior_player.is_aabb_collision(npc1):
+                npc_talk = True
+                spawn_block = True
+
+        if not interior_player.is_aabb_collision(npc1):
+            npc_talk = False
+
+        if keys[pygame.K_LSHIFT]:
+            interior_player.dx = interior_player.dx * 2
+
+        if load_state == True:
+            load_in()
+            if load_down.y > 190 and load_up.y < 620:
+                self.state = change_state()
+                load_state = False
+
+        load_out()
+
+
+        interior_player.move()
+
+        if interior_player.y > 800:
+            interior_player.goto(50, 0)
+        if interior_player.x >= 625:
+            interior_player.x = 625
+        elif interior_player.x <= 125:
+            interior_player.x = 125
+
+        if interior_player.is_aabb_collision(ground):
+            if interior_player.y < ground.y:
+                interior_player.dy = 0
+                interior_player.y = ground.y - ground.height / 2 - interior_player.height / 2 + 1
+
+        screen.fill('sky blue')
+
+        ground.render()
+
+        for cloud in clouds:
+            cloud.render()
+            cloud.x += -.5
+            if cloud.x <= -200:
+                clouds.remove(cloud)
+
+        for x in grass:
+            x.render()
+
+        pygame.draw.lines(screen, 'red', True, [(100, 100), (375, 0), (650, 100)], 100)
+
+        interior_house.render()
+        interior_door.render()
+
+        pygame.draw.line(screen, 'black', (100, 100), (649, 100), 1)
+        pygame.draw.line(screen, 'black', (100, 150), (649, 150), 1)
+        pygame.draw.line(screen, 'black', (100, 200), (649, 200), 1)
+        pygame.draw.line(screen, 'black', (100, 250), (649, 250), 1)
+        pygame.draw.line(screen, 'black', (100, 300), (649,300), 1)
+        pygame.draw.line(screen, 'black', (100, 350), (649, 350), 1)
+        pygame.draw.line(screen, 'black', (100, 400), (649, 400), 1)
+        pygame.draw.line(screen, 'black', (100, 450), (649, 450), 1)
+        pygame.draw.line(screen, 'black', (100, 500), (649, 500), 1)
+        pygame.draw.line(screen, 'black', (100, 550), (649, 550), 1)
+
+        if npc_talk == True:
+            pygame.draw.rect(screen, 'black', npc_rect,10 ,10)
+            pygame.draw.rect(screen, 'white', npc_rect,1,20)
+            screen.blit(npc_text,npc_rect)
+
+        if blockBlock == True:
+            preventRod()
+
+
+        pygame.draw.circle(screen, 'light blue', (npc1.x,npc1.y - 65),35)
+        npc1.render()
+
+        interior_player.render()
+
+    def outside_left(self):
+        global load_state
+
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    pygame.quit()
+                    sys.exit()
+            if event.type == CREATECLOUD:
+                createClouds(clouds)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if len(blocks) != block_limit:
+                    if exterior_player.is_aabb_collision(ground):
+                        create_block()
+                    if blocks:
+                        for block in blocks:
+                            if exterior_player.is_aabb_collision(block):
+                                create_block()
+                    for rock in mountain:
+                        if exterior_player.is_aabb_collision(rock):
+                            create_block()
+                elif len(blocks) == block_limit:
+                    if exterior_player.is_aabb_collision(ground):
+                        del blocks[0]
+                        create_block()
+                    if blocks:
+                        for block in blocks:
+                            if exterior_player.is_aabb_collision(block):
+                                del blocks[0]
+                                create_block()
+                    for rock in mountain:
+                        if exterior_player.is_aabb_collision(rock):
+                            del blocks[0]
+                            create_block()
+
+
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_a]:
+            exterior_player.dx = -5
+        elif keys[pygame.K_d]:
+            exterior_player.dx = 5
+        else:
+            exterior_player.dx = 0
+        if exterior_player.is_aabb_collision(ground):
+            if keys[pygame.K_SPACE] :
+                pass#exterior_player.dy -= 12
+        if keys[pygame.K_LSHIFT]:
+            exterior_player.dx = exterior_player.dx * 2
+        if drop_block:
+            for block in blocks:
+                if keys[pygame.K_e]:
+                    block.block_drop()
+                    if block.y > 600:
+                        blocks.remove(block)
+
+
+        #Loading material
+        if keys[pygame.K_w] and exterior_player.is_aabb_collision(exterior_cave_door):
+            load_state = True
+
+        if exterior_player.x >= 800:
+            load_state = True
+
+        if load_state == True:
+            load_in()
+            if load_down.y > 190 and load_up.y < 620:
+                self.state = change_state()
+                load_state = False
+
+        load_out()
+
+        #Movement
+
+        exterior_player.move()
+
+        if exterior_player.y > 800:
+            exterior_player.goto(50, 0)
+
+        if exterior_player.is_aabb_collision(ground):
+            if exterior_player.y < ground.y:
+                exterior_player.dy = 0
+                exterior_player.y = ground.y - ground.height / 2 - exterior_player.height / 2 + 1
+                if keys[pygame.K_SPACE]:
+                    exterior_player.dy -= 12
+
+        for rock in mountain:
+            if exterior_player.is_aabb_collision(rock):
+                collision_check(exterior_player,rock)
+            if exterior_player.is_aabb_collision(rock):
+                if keys[pygame.K_SPACE] :
+                    exterior_player.dy -= 12
+
+
+        for block in blocks:
+            if exterior_player.is_aabb_collision(block):
+                collision_check(exterior_player,block)
+            if exterior_player.is_aabb_collision(block):
+                if keys[pygame.K_SPACE]:
+                    exterior_player.dy -= 12
+
+        screen.fill('sky blue')
+
+        pygame.draw.circle(screen, 'yellow', (600, 100), 50)
+        for cloud in clouds:
+            cloud.render()
+            cloud.x += -.5
+            if cloud.x <= -1000:
+                clouds.remove(cloud)
+        cave.render()
+        draw_block(blocks)
+
+        enemy2.move()
+        enemy3.move()
+
+        if enemy2.is_aabb_collision(ground):
+            enemy2.dy = 0
+            enemy2.y = ground.y - ground.height / 2.0 - enemy2.height / 2.0 + 1
+            enemy2.dy -= 15
+        if enemy3.is_aabb_collision(ground):
+            enemy3.dy = 0
+            enemy3.y = ground.y - ground.height / 2.0 - enemy3.height / 2.0 + 1
+            enemy3.dy -= 15
+
+        for block in blocks:
+            if enemy2.is_aabb_collision(block):
+                if enemy2.x <= block.x - block.width / 2.0 and enemy2.dx > 0:
+                    enemy2.dx = enemy2.dx * -1
+                    enemy2.x = block.x - block.width / 2.0 - enemy2.width / 2.0
+                elif enemy2.x >= block.x + block.width / 2.0 and enemy2.dx < 0:
+                    enemy2.dx = enemy2.dx * -1
+                    enemy2.x = block.x + block.width / 2.0 + enemy2.width / 2.0
+                elif enemy2.y < block.y:
+                    enemy2.dy = 0
+                    enemy2.y = block.y - block.height / 2.0 - enemy2.height / 2.0 + 1
+                    enemy2.dy -= 15
+                elif enemy2.y > block.y:
+                    enemy2.dy = 0
+                    enemy2.y = block.y + block.height / 2.0 + enemy2.height / 2.0
+
+            if enemy3.is_aabb_collision(block):
+                if enemy3.x <= block.x - block.width / 2.0 and enemy3.dx > 0:
+                    enemy3.dx = enemy3.dx * -1
+                    enemy3.x = block.x - block.width / 2.0 - enemy3.width / 2.0
+                elif enemy3.x >= block.x + block.width / 2.0 and enemy3.dx < 0:
+                    enemy3.dx = enemy3.dx * -1
+                    enemy3.x = block.x + block.width / 2.0 + enemy3.width / 2.0
+                elif enemy3.y < block.y:
+                    enemy3.dy = 0
+                    enemy3.y = block.y - block.height / 2.0 - enemy3.height / 2.0 + 1
+                    enemy3.dy -= 15
+                elif enemy3.y > block.y:
+                    enemy3.dy = 0
+                    enemy3.y = block.y + block.height / 2.0 + enemy3.height / 2.0
+
+        if exterior_player.is_aabb_collision(enemy2):
+            collision_check(exterior_player, enemy2)
+            if exterior_player.y <= enemy2.y and math.fabs(exterior_player.x - enemy2.x) <= enemy2.width / 2.0:
+                if keys[pygame.K_SPACE]:
+                    exterior_player.dy -= 12
+
+        if exterior_player.is_aabb_collision(enemy3):
+            collision_check(exterior_player, enemy3)
+            if exterior_player.y <= enemy3.y and math.fabs(exterior_player.x - enemy3.x) <= enemy3.width / 2.0:
+                if keys[pygame.K_SPACE]:
+                    exterior_player.dy -= 12
+
+        enemy2.render()
+        enemy3.render()
+
+        ground.render()
+
+        #cave.render()
+        exterior_cave_door.render()
+        exterior_player.render()
+        exterior_player.block_range()
+
+        for x in grass:
+            x.render()
+        for y in mountain:
+            y.render()
+
+        pygame.draw.line(screen, 'black', (0, 200,), (20, 200), 1)
+        pygame.draw.line(screen, 'black', (0, 400,), (223, 400), 1)
+        pygame.draw.line(screen,'black',(0,475,),(250,475),1)
+
+        crosshair_group.draw(screen)
+        crosshair_group.update()
+
+    def cave(self):
+        global load_state, blockBlock, spawn_block, open_chest, block_limit
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    pygame.quit()
+                    sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if spawn_block:
+                    if blockBlock == False:
+                        blockBlock = True
+            if event.type == UNABLETOUSE:
+                blockBlock = False
+
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_a]:
+            interior_player.dx = -8
+        elif keys[pygame.K_d]:
+            interior_player.dx = 8
+        else:
+            interior_player.dx = 0
+        if keys[pygame.K_SPACE] and interior_player.is_aabb_collision(cave_ground):
+            interior_player.dy = -16
+
+        if keys[pygame.K_w]:
+            if interior_player.is_aabb_collision(interior_cave_door):
+                load_state = True
+        if keys[pygame.K_LSHIFT]:
+            interior_player.dx = interior_player.dx * 2
+
+        if load_state == True:
+            load_in()
+            if load_down.y > 190 and load_up.y < 620:
+                self.state = change_state()
+                load_state = False
+
+        load_out()
+        interior_player.move()
+        if interior_player.is_aabb_collision(cave_ground):
+            if interior_player.y < cave_ground.y:
+                interior_player.dy = 0
+                interior_player.y = cave_ground.y - cave_ground.height / 2.0 - interior_player.height / 2.0 + 1
+
+        screen.fill('grey')
+
+        interior_cave_door.render()
+        cave_ground.render()
+
+        pygame.draw.polygon(screen,'brown',([(175,0),(200,150),(225,0)]))
+        pygame.draw.polygon(screen, 'brown', ([(250, 0), (275, 150), (300, 0)]))
+        pygame.draw.polygon(screen, 'brown', ([(455, 0), (480, 75), (505, 0)]))
+        pygame.draw.polygon(screen, 'brown', ([(100, 0), (125, 75), (150, 0)]))
+        pygame.draw.polygon(screen, 'brown', ([(700, 0), (725, 75), (750, 0)]))
+        pygame.draw.polygon(screen, 'brown', ([(575, 0), (600, 150), (625, 0)]))
+
+        if interior_player.x >= 775:
+            interior_player.x = 775
+        elif interior_player.x <= 25:
+            interior_player.x = 25
+        interior_player.render()
+
+        openChest()
+        if keys[pygame.K_w] and interior_player.is_aabb_collision(chest) and not open_chest:
+            open_chest = True
+            block_limit = 2
+
+        unlocked2 = False
+
+        if open_chest == True and interior_player.is_aabb_collision(chest):
+            powerofTwo()
+
+        chest.render()
+
+        pygame.draw.circle(screen,'brown',(400,300),500,75)
+
+        if blockBlock == True:
+            preventRod()
+
+        if interior_player.y > 800:
+            interior_player.goto(50, 0)
+
+    def outside_right(self):
+        global load_state
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    pygame.quit()
+                    sys.exit()
+            if event.type == CREATECLOUD:
+                createClouds(clouds)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if len(blocks) != block_limit:
+                    if exterior_player.is_aabb_collision(ground):
+                        create_block()
+                    if blocks:
+                        for block in blocks:
+                            if exterior_player.is_aabb_collision(block):
+                                create_block()
+                elif len(blocks) == block_limit:
+                    if exterior_player.is_aabb_collision(ground):
+                        del blocks[0]
+                        create_block()
+                    if blocks:
+                        for block in blocks:
+                            if exterior_player.is_aabb_collision(block):
+                                del blocks[0]
+                                create_block()
+
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_a]:
+            exterior_player.dx = -5
+        elif keys[pygame.K_d]:
+            exterior_player.dx = 5
+        else:
+            exterior_player.dx = 0
+        if exterior_player.is_aabb_collision(ground):
+            if keys[pygame.K_SPACE]:
+                exterior_player.dy -= 12
+
+        if keys[pygame.K_LSHIFT]:
+            exterior_player.dx = exterior_player.dx * 2
+        for block in blocks:
+            if keys[pygame.K_e]:
+                block.block_drop()
+                if block.y > 600:
+                    blocks.remove(block)
+
+        if exterior_player.x <= 0:
+            load_state = True
+
+        if exterior_player.x >= 800:
+            load_state = True
+
+        if load_state == True:
+            load_in()
+            if load_down.y > 190 and load_up.y < 620:
+                self.state = change_state()
+                load_state = False
+
+        load_out()
+
+        exterior_player.move()
+
+        if exterior_player.y > 800:
+            exterior_player.goto(50, 0)
+
+        if exterior_player.is_aabb_collision(ground):
+            if exterior_player.y < ground.y:
+                exterior_player.dy = 0
+                exterior_player.y = ground.y - ground.height / 2 - exterior_player.height / 2 + 1
+
+        for block in blocks:
+            if exterior_player.is_aabb_collision(block):
+                collision_check(exterior_player,block)
+            if exterior_player.is_aabb_collision(block):
+                if keys[pygame.K_SPACE]:
+                    exterior_player.dy -= 12
+
+
+        screen.fill('sky blue')
+
+        pygame.draw.circle(screen, 'yellow', (600, 100), 50)
+
+        for cloud in clouds:
+            cloud.render()
+            cloud.x += -.5
+            if cloud.x <= -1000:
+                clouds.remove(cloud)
+        pygame.draw.polygon(screen, (250,150,0), ([(325, 490), (800, 425), (800, 600)]))
+        for tree in forest_back:
+            tree.render()
+
+        pygame.draw.circle(screen, 'dark green', (220, 445), 25)
+        sign.render()
+
+
+        pygame.draw.line(screen,'black',(205,507),(235,507),1)
+        pygame.draw.line(screen, 'black', (205, 515), (235, 515), 1)
+        draw_block(blocks)
+        ground.render()
+
+        exterior_player.render()
+        exterior_player.block_range()
+
+        for tree in forest_fore:
+            tree.render()
+
+        pygame.draw.circle(screen,'dark green',(360,460),50)
+        pygame.draw.circle(screen, 'dark green', (400, 450), 50)
+        pygame.draw.circle(screen, 'dark green', (490, 435), 50)
+        pygame.draw.circle(screen, 'dark green', (450, 450), 50)
+        pygame.draw.circle(screen, 'dark green', (570, 420), 60)
+        pygame.draw.circle(screen, 'dark green', (615, 440), 60)
+        pygame.draw.circle(screen, 'dark green', (720, 450), 50)
+        pygame.draw.circle(screen, 'dark green', (750, 450), 50)
+        pygame.draw.circle(screen, 'dark green', (685, 420), 50)
+        pygame.draw.circle(screen, 'dark green', (780, 420), 50)
+        if keys[pygame.K_w] and exterior_player.is_aabb_collision(sign):
+            signPost()
+
+
+        for x in grass:
+            x.render()
+
+        crosshair_group.draw(screen)
+        crosshair_group.update()
+
+    def forest(self):
+        global load_state
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    pygame.quit()
+                    sys.exit()
+            if event.type == CREATECLOUD:
+                createClouds(clouds)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if len(blocks) != block_limit:
+                    if exterior_player.is_aabb_collision(ground):
+                        create_block()
+                    if blocks:
+                        for block in blocks:
+                            if exterior_player.is_aabb_collision(block):
+                                create_block()
+                elif len(blocks) == block_limit:
+                    if exterior_player.is_aabb_collision(ground):
+                        del blocks[0]
+                        create_block()
+                    if blocks:
+                        for block in blocks:
+                            if exterior_player.is_aabb_collision(block):
+                                del blocks[0]
+                                create_block()
+
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_a]:
+            exterior_player.dx = -5
+        elif keys[pygame.K_d]:
+            exterior_player.dx = 5
+        else:
+            exterior_player.dx = 0
+        if exterior_player.is_aabb_collision(ground):
+            if keys[pygame.K_SPACE]:
+                exterior_player.dy -= 12
+        if keys[pygame.K_LSHIFT]:
+            exterior_player.dx = exterior_player.dx * 2
+        for block in blocks:
+            if keys[pygame.K_e]:
+                block.block_drop()
+                if block.y > 600:
+                    blocks.remove(block)
+
+        if exterior_player.x <= 0:
+            load_state = True
+        if exterior_player.x >= 800:
+            load_state = True
+
+        if load_state == True:
+            load_in()
+            if load_down.y > 190 and load_up.y < 620:
+                self.state = change_state()
+                load_state = False
+
+        load_out()
+
+        exterior_player.move()
+
+        if exterior_player.is_aabb_collision(ground):
+            if exterior_player.y < ground.y:
+                exterior_player.dy = 0
+                exterior_player.y = ground.y - ground.height / 2 - exterior_player.height / 2 + 1
+
+        for block in blocks:
+            if exterior_player.is_aabb_collision(block):
+                collision_check(exterior_player, block)
+            if exterior_player.is_aabb_collision(block):
+                if keys[pygame.K_SPACE]:
+                    exterior_player.dy -= 12
+
+        screen.fill((255,150,0))
+
+        for cloud in clouds:
+            cloud.render()
+            cloud.x += -.5
+            if cloud.x <= -1000:
+                clouds.remove(cloud)
+
+        enemy2.move()
+
+        if enemy2.is_aabb_collision(ground):
+            enemy2.dy = 0
+            enemy2.y = ground.y - ground.height / 2.0 - enemy2.height / 2.0 + 1
+            enemy2.dy -= 15
+
+        for block in blocks:
+            if enemy2.is_aabb_collision(block):
+                if enemy2.x <= block.x - block.width / 2.0 and enemy2.dx > 0:
+                    enemy2.dx = enemy2.dx * -1
+                    enemy2.x = block.x - block.width / 2.0 - enemy2.width / 2.0
+                elif enemy2.x >= block.x + block.width / 2.0 and enemy2.dx < 0:
+                    enemy2.dx = enemy2.dx * -1
+                    enemy2.x = block.x + block.width / 2.0 + enemy2.width / 2.0
+                elif enemy2.y < block.y:
+                    enemy2.dy = 0
+                    enemy2.y = block.y - block.height / 2.0 - enemy2.height / 2.0 + 1
+                    enemy2.dy -= 15
+                elif enemy2.y > block.y:
+                    enemy2.dy = 0
+                    enemy2.y = block.y + block.height / 2.0 + enemy2.height / 2.0
+
+        if exterior_player.is_aabb_collision(enemy2):
+            collision_check(exterior_player, enemy2)
+            if exterior_player.y <= enemy2.y and math.fabs(exterior_player.x - enemy2.x) <= enemy2.width / 2.0:
+                if keys[pygame.K_SPACE]:
+                    exterior_player.dy -= 12
+
+        for tree in trees2:
+            tree.render()
+
+        draw_block(blocks)
+
+        enemy2.render()
+        ground.render()
+
+        exterior_player.render()
+
+        for x in grass:
+            x.render()
+
+        for tree in trees1:
+            tree.render()
+            pygame.draw.line(screen, light_brown, (tree.x - 35, tree.y+300), (tree.x + 35, tree.y+300), 5)
+            pygame.draw.circle(screen, 'dark green', (tree.x, tree.y - 20), 100)
+
+
+
+        pygame.draw.rect(screen, 'dark green', (0, 0, 800, 300))
+
+        if exterior_player.is_aabb_collision(canopy):
+            if exterior_player.y < canopy.y:
+                exterior_player.dy = 0
+                exterior_player.y = canopy.y - canopy.height / 2.0 - exterior_player.height / 2.0 + 1
+                if keys[pygame.K_SPACE]:
+                    exterior_player.dy -= 12
+
+
+        canopy.render()
+
+        pygame.draw.circle(screen, 'black', (200, 100), 80, 1)
+        pygame.draw.circle(screen, 'black', (550, 100), 80, 1)
+        pygame.draw.circle(screen, 'black', (0, 200), 80, 1)
+        pygame.draw.circle(screen, 'black', (400, 240), 80, 1)
+        pygame.draw.circle(screen, 'black', (800, 200), 80, 1)
+
+        pygame.draw.rect(screen, 'dark green', (100, 0, 260, 100))
+        pygame.draw.rect(screen, 'dark green', (450, 0, 260, 100))
+        pygame.draw.rect(screen, 'dark green', (-50, 100, 160, 100))
+        pygame.draw.rect(screen, 'dark green', (312, 155, 175,100))
+        pygame.draw.rect(screen, 'dark green', (700, 100, 160, 100))
+
+        print(exterior_player.x,exterior_player.y)
+        exterior_player.block_range()
+        crosshair_group.draw(screen)
+        crosshair_group.update()
+
+    def treetops(self):
+        global load_state
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    pygame.quit()
+                    sys.exit()
+            if event.type == CREATECLOUD:
+                createClouds(clouds)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if len(blocks) != block_limit:
+                    if exterior_player.is_aabb_collision(ground):
+                        create_block()
+                    if blocks:
+                        for block in blocks:
+                            if exterior_player.is_aabb_collision(block):
+                                create_block()
+                    for branch in branches:
+                        if exterior_player.is_aabb_collision(branch):
+                            create_block()
+                elif len(blocks) == block_limit:
+                    if exterior_player.is_aabb_collision(ground):
+                        del blocks[0]
+                        create_block()
+                    if blocks:
+                        for block in blocks:
+                            if exterior_player.is_aabb_collision(block):
+                                del blocks[0]
+                                create_block()
+                            for branch in branches:
+                                if exterior_player.is_aabb_collision(branch):
+                                    del blocks[0]
+                                    create_block()
+
+
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_a]:
+            exterior_player.dx = -5
+        elif keys[pygame.K_d]:
+            exterior_player.dx = 5
+        else:
+            exterior_player.dx = 0
+        if exterior_player.is_aabb_collision(ground):
+            if keys[pygame.K_SPACE]:
+                exterior_player.dy -= 12
+        if keys[pygame.K_LSHIFT]:
+            exterior_player.dx = exterior_player.dx * 2
+        for block in blocks:
+            if keys[pygame.K_e]:
+                block.block_drop()
+                if block.y > 600:
+                    blocks.remove(block)
+
+        if exterior_player.x <= 0:
+            load_state = True
+
+        if load_state == True:
+            load_in()
+            if load_down.y > 190 and load_up.y < 620:
+                self.state = change_state()
+                load_state = False
+
+        load_out()
+
+        exterior_player.move()
+
+        if exterior_player.is_aabb_collision(ground):
+            if exterior_player.y < ground.y:
+                exterior_player.dy = 0
+                exterior_player.y = ground.y - ground.height / 2 - exterior_player.height / 2 + 1
+
+        for block in blocks:
+            if exterior_player.is_aabb_collision(block):
+                collision_check(exterior_player, block)
+            if exterior_player.is_aabb_collision(block):
+                if keys[pygame.K_SPACE]:
+                    exterior_player.dy -= 12
+
+        screen.fill('dark green')
+        for tree in trees2:
+            tree.render()
+
+        draw_block(blocks)
+
+        ground.render()
+
+        exterior_player.render()
+        for branch in branches:
+            if exterior_player.is_aabb_collision(branch):
+                collision_check(exterior_player,branch)
+                if keys[pygame.K_SPACE]:
+                    exterior_player.dy -= 12
+
+        #pygame.draw.rect(screen, 'dark green', (0, 0, 800, 300))
+
+        for branch in branches:
+            branch.render()
+
+        for tree in trees1:
+            tree.render()
+            pygame.draw.line(screen, light_brown, (tree.x - 35, tree.y + 300), (tree.x + 35, tree.y + 300), 5)
+
+
+
+
+
+        exterior_player.block_range()
+        crosshair_group.draw(screen)
+        crosshair_group.update()
+
+
+    def stateManager(self):
+        if self.state == 'outside':
+            self.outside()
+        if self.state == 'inside':
+            self.inside()
+        if self.state == 'outside_left':
+            self.outside_left()
+        if self.state == 'outside_right':
+            self.outside_right()
+        if self.state == 'cave':
+            self.cave()
+        if self.state == 'forest':
+            self.forest()
+        if self.state == 'treetops':
+            self.treetops()
+def createClouds(clouds):
+    cloud_x = random.randrange(850, 950)
+    cloud_y = random.randrange(0, 475)
+    cloud_width = random.randrange(50, 150)
+    cloud_height = random.randrange(10, 75)
+    clouds.append(Sprite(cloud_x, cloud_y, cloud_width, cloud_height, 'white'))
+
+def load_in():
+    global load_up, load_down, load_state
+    if load_down.y <= 220:
+        load_down.y += 15
+    if load_up.y >= 300:
+        load_up.y += -15
+
+def change_state():
+    global game_state
+    if game_state.state == 'inside':
+        blocks.clear()
+        return 'outside'
+    if game_state.state == 'outside':
+        if exterior_player.is_aabb_collision(exterior_door):
+            blocks.clear()
+            return 'inside'
+        if exterior_player.x > 700:
+            blocks.clear()
+            exterior_player.goto(20, 530)
+            return 'outside_right'
+        if exterior_player.x < 100:
+            blocks.clear()
+            exterior_player.goto(750, 530)
+            return 'outside_left'
+    if game_state.state == 'outside_right':
+        if exterior_player.x < 100:
+            blocks.clear()
+            exterior_player.goto(750, 530)
+            return 'outside'
+        if exterior_player.x > 700:
+            blocks.clear()
+            exterior_player.goto(20, 530)
+            return 'forest'
+    if game_state.state == 'outside_left':
+        if exterior_player.x > 700:
+            blocks.clear()
+            exterior_player.goto(20, 530)
+            return 'outside'
+        if exterior_player.is_aabb_collision(exterior_cave_door):
+            blocks.clear()
+            interior_player.goto(130, 400)
+            return 'cave'
+    if game_state.state == 'cave':
+        blocks.clear()
+        exterior_player.goto(130,170)
+        return 'outside_left'
+    if game_state.state == 'forest':
+        if exterior_player.x < 100:
+            blocks.clear()
+            exterior_player.goto(750, 170)
+            return 'outside_right'
+        if exterior_player.x > 700 and exterior_player.y > 300:
+            blocks.clear()
+            exterior_player.goto(20,530)
+            return 'forest'
+        elif exterior_player.x > 700 and exterior_player.y < 300:
+            blocks.clear()
+            exterior_player.goto(20,220)
+            return 'treetops'
+    if game_state.state == 'treetops':
+        if exterior_player.x < 100:
+            blocks.clear()
+            exterior_player.goto(750,220)
+            return 'forest'
+
+def load_out():
+    if load_down.y >= -230 and not load_state:
+        load_down.y += -15
+    if load_up.y <= 830 and not load_state:
+        load_up.y += 15
+
+def create_block():
+    if spawn_block:
+        x, y = pygame.mouse.get_pos()
+        if (x - exterior_player.x)**2 + (y - exterior_player.y) **2 <= 200 **2:
+            if (x - exterior_player.x)**2 + (y - exterior_player.y) **2 > 50 **2:
+                blocks.append(Block(x,y))
+
+def draw_block(blocks):
+    for block in blocks:
+        block.render()
+
+def collision_check(object1,object2):
+    if object1.x <= object2.x - object2.width / 2.0 and object1.dx > 0:
+        object1.dx = 0
+        object1.x = object2.x - object2.width / 2.0 - object1.width / 2.0
+    elif object1.x >= object2.x + object2.width / 2.0 and object1.dx < 0:
+        object1.dx = 0
+        object1.x = object2.x + object2.width / 2.0 + object1.width / 2.0
+    elif object1.y < object2.y:
+        object1.dy = 0
+        object1.y = object2.y - object2.height / 2.0 - object1.height / 2.0 + 1
+    elif object1.y > object2.y:
+        object1.dy = 0
+        object1.y = object2.y + object2.height / 2.0 + object1.height / 2.0
+
+def preventRod():
+    text1 = text_font.render('      I cannot use that in here.       ', False, 'white')
+    text1_rect = text1.get_rect(center=(interior_player.x, interior_player.y - 75))
+    pygame.draw.rect(screen, 'black', text1_rect, 10, 10)
+    pygame.draw.rect(screen, 'white', text1_rect, 1, 20)
+    screen.blit(text1, text1_rect)
+
+def signPost():
+    text2 = text_font.render('  Summon one, not quite done/Summon two, this way for you  ',False,'black')
+    text2_rect = text2.get_rect(center=(sign.x + 75,sign.y - 50))
+    pygame.draw.rect(screen, light_brown, text2_rect, 10, 10)
+    pygame.draw.rect(screen, 'white', text2_rect, 1, 20)
+    screen.blit(text2, text2_rect)
+
+def openChest():
+    if open_chest == False:
+        pygame.draw.arc(screen, 'brown', (480, 403, 40, 45), 0, 3.5, 20)
+    else:
+        pygame.draw.arc(screen,'brown',(480,403,40,45),0,1.7, 20)
+
+def powerofTwo():
+    text3 = text_font.render('   Unlocked the power of two   ', False, 'white')
+    text3_rect = text3.get_rect(center=(chest.x, chest.y - 75))
+    pygame.draw.rect(screen, 'black', text3_rect, 10, 10)
+    pygame.draw.rect(screen, 'white', text3_rect, 1, 20)
+    screen.blit(text3, text3_rect)
+
+pygame.init()
+clock = pygame.time.Clock()
+
+WIDTH = 800
+HEIGHT = 600
+screen = pygame.display.set_mode((WIDTH,HEIGHT))
+GRAVITY = 1
+jump = 0
+spawn_block = False
+high_jump = False
+drop_block = False
+launch_block = False
+blockBlock = False
+
+UNABLETOUSE = pygame.USEREVENT
+pygame.time.set_timer(UNABLETOUSE,2000)
+CREATECLOUD = pygame.USEREVENT
+pygame.time.set_timer(CREATECLOUD,1600)
+
+# Player
+exterior_player = Player(480, 550, 20, 40, 'tan')
+interior_player = Player(480,530, 50,100, 'tan')
+
+# Enemy
+
+enemy1 = Enemy(40,530,60,40,'red')
+enemy2 = Enemy(600,530,60,40,'red')
+enemy3 = Enemy(350,530,60,40,'red')
+
+# NPC
+npc1 = Sprite(300,500,50,100, 'light blue')
+text_font = pygame.font.Font('freesansbold.ttf', 20)
+npc_text = text_font.render('     Hello. Use this *ROD* to spawn blocks outside!     ', False, 'light blue')
+npc_rect = npc_text.get_rect(center = (npc1.x,npc1.y - 150))
+
+# House
+exterior_house = Sprite(600, 500, 200, 100, 'grey')
+exterior_door = Sprite(600, 530, 20, 40, 'black')
+interior_house = Sprite(375,325,550,450,'brown')
+interior_door = Sprite(480,500,50,100,'black')
+
+# Loadblocks
+load_down = Sprite(400,200,800,450,'black')
+load_up = Sprite (400,400,800,450,'black')
+
+game_state = Gamestate()
+load_state = False
+npc_talk = False
+
+# Block Bullets
+blocks = []
+block_limit = 1
+pygame.mouse.set_visible(False)
+
+block_sprites = pygame.sprite.Group()
+for block in blocks:
+    block_sprites.add(block)
+
+# Crosshair
+crosshair = Crosshair()
+crosshair_group = pygame.sprite.Group()
+crosshair_group.add(crosshair)
+light_brown = (200,100, 100)
+
+# Sign
+sign = Sprite(220,512,40,25,light_brown)
+
+
+# World Building:
+# Ground
+ground = Sprite(600,700,1200,300,'light green')
+
+# Clouds
+clouds = []
+
+for topLeft in range(6):
+    clouds.append(Sprite(random.randrange(0,400),random.randrange(0, 200),random.randrange(50, 150),random.randrange(10, 75),'white'))
+for bl in range(6):
+    clouds.append(Sprite(random.randrange(0, 400), random.randrange(0, 200), random.randrange(50, 150), random.randrange(10, 75),'white'))
+for tr in range(6):
+    clouds.append(Sprite(random.randrange(400, 800), random.randrange(200, 400), random.randrange(50, 150), random.randrange(10, 75),'white'))
+for br in range(6):
+    clouds.append(Sprite(random.randrange(400,800),random.randrange(200, 400),random.randrange(50, 150),random.randrange(10, 75),'white'))
+
+# Grass
+grass = []
+grass_color = (100, 200, 100)
+
+for i in range(0,700):
+    grass.append(Sprite(random.randrange(0, 800), random.randrange(550, 600), random.randrange(2, 7), random.randrange(5, 20), grass_color))
+
+# Mountain
+mountain = []
+mountain.append(Sprite(100,400,250,400,'brown'))
+mountain.append(Sprite(100,500,300,200,'brown'))
+mountain.append(Sprite(100,550,330,150,'brown'))
+mountain.append(Sprite(10,100,20,200,'brown'))
+
+# Cave
+open_chest = False
+cave = Sprite(100,125,175,150,'grey')
+exterior_cave_door = Sprite(130, 170, 40, 60, 'black')
+interior_cave_door = Sprite(130, 400, 80, 120, 'black')
+cave_ground = Sprite(400,600,800,300,(200,200,20))
+chest = Chest(500,438)
+
+# Trees
+forest_fore = []
+forest_fore.append(Sprite(400, 500, 20, 150, 'brown'))
+forest_fore.append(Sprite(450, 520, 20, 100, 'brown'))
+forest_fore.append(Sprite(490, 500, 10, 150, 'brown'))
+forest_fore.append(Sprite(570, 520, 15, 100, 'brown'))
+forest_fore.append(Sprite(600, 500, 8, 175, 'brown'))
+forest_fore.append(Sprite(745, 500, 15, 150, 'brown'))
+forest_fore.append(Sprite(360, 520, 9, 100, 'brown'))
+forest_fore.append(Sprite(624, 500, 15, 150, 'brown'))
+forest_fore.append(Sprite(690, 520, 10, 100, 'brown'))
+forest_fore.append(Sprite(720, 500, 20, 175, 'brown'))
+forest_back = []
+forest_back.append(Sprite(392, 500, 10, 100, 'brown'))
+forest_back.append(Sprite(220, 500, 10, 100, 'brown'))
+forest_back.append(Sprite(650, 500, 7, 100, 'brown'))
+forest_back.append(Sprite(529, 500, 13, 100, 'brown'))
+forest_back.append(Sprite(580, 500, 20, 100, 'brown'))
+forest_back.append(Sprite(733, 500, 20, 100, 'brown'))
+forest_back.append(Sprite(455, 500, 20, 100, 'brown'))
+forest_back.append(Sprite(602, 500, 14, 100, 'brown'))
+forest_back.append(Sprite(780, 500, 13, 100, 'brown'))
+forest_back.append(Sprite(472, 500, 20, 100, 'brown'))
+# More forest
+
+trees1 = []
+trees1.append(Sprite(22, 275, 50, 600, light_brown))
+trees1.append(Sprite(150, 260, 50, 600, light_brown))
+trees1.append(Sprite(325, 280, 50, 600, light_brown))
+trees1.append(Sprite(432, 275, 50, 600, light_brown))
+trees1.append(Sprite(666, 300, 50, 600, light_brown))
+
+trees2 = []
+trees2.append(Sprite(555,300,30,800,'brown'))
+trees2.append(Sprite(85,300,20,800,'brown'))
+trees2.append(Sprite(223,300,25,800,'brown'))
+trees2.append(Sprite(88,300,15,800,'brown'))
+trees2.append(Sprite(622,300,22,800,'brown'))
+trees2.append(Sprite(400,300,30,800,'brown'))
+trees2.append(Sprite(252,300,20,800,'brown'))
+trees2.append(Sprite(782,300,25,800,'brown'))
+trees2.append(Sprite(350,300,15,800,'brown'))
+trees2.append(Sprite(599,300,22,800,'brown'))
+
+canopy = Sprite(600,250,800,20,'dark green')
+branches = []
+branches.append(Sprite(100,400,100,20,'brown'))
+branches.append(Sprite(100,250,200,20,'brown'))
+branches.append(Sprite(300,275,150,20,'brown'))
+
+while True:
+    game_state.stateManager()
+
+    load_down.render()
+    load_up.render()
+
+    pygame.display.flip()
+    clock.tick(30)
